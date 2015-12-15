@@ -1,0 +1,17 @@
+{
+  "name": "multer-disk-hashed-storage",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "concat-stream": "^1.5.1",
+    "md5": "^2.0.0",
+    "mime": "^1.3.4",
+    "mkdirp": "^0.5.1"
+  },
+  "author": "Spown",
+  "license": "ISC"
+}
