@@ -3,9 +3,8 @@ var fs = require('fs'),
 	os = require('os'),
 	path = require('path'),
 	mkdirp = require('mkdirp'),
-	concat = require('concat-stream'),
-	md5 = require('md5'),
 	mime = require('mime'),
+	concat = require('concat-stream'),
 	staticVars = require('static-vars'),
 	_ = require('lodash'),
 	QS_INIT = 0, QS_STARTED = 1, QS_PROCESSING = 2, QS_FINISHED = 7
@@ -67,7 +66,7 @@ function DiskStorage(opts) {
 		};
 	} else if (!opts.filename) {
         this.setFilename = function (req, queueItem) {
-            return md5(queueItem.buffer)+'_'+queueItem.buffer.length+'.'+mime.extension(queueItem.file.mimetype);
+            return Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype);
         }
     }
 	

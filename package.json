@@ -1,5 +1,5 @@
 {
-  "name": "multer-disk-hashed-storage",
+  "name": "multer-disk-queue-storage",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,7 +9,6 @@
   "dependencies": {
     "concat-stream": "^1.5.1",
     "lodash": "^3.10.1",
-    "md5": "^2.0.0",
     "mime": "^1.3.4",
     "mkdirp": "^0.5.1",
     "static-vars": "0.0.2"
