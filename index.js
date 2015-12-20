@@ -12,11 +12,11 @@ var fs = require('fs'),
 
 function processQueue(q) {
 	var concurrentNum = 0,
-		multerDiskHashedStorageQueueMaxConcurrent = staticVars.get('multerDiskHashedStorageQueueMaxConcurrent'),
+		multerDiskQueueStorageMaxConcurrent = staticVars.get('multerDiskQueueStorageMaxConcurrent'),
 		toDelete = []
 	;
 	_.each(q, function(qi, idx) {
-		if (qi.state === QS_INIT && concurrentNum <= multerDiskHashedStorageQueueMaxConcurrent) {
+		if (qi.state === QS_INIT && concurrentNum <= multerDiskQueueStorageMaxConcurrent) {
 			qi.read();
 			concurrentNum++;
 		} else if (qi.state > QS_INIT && qi.state < QS_FINISHED) {
@@ -27,20 +27,20 @@ function processQueue(q) {
 	});
 	_.pullAt(q, toDelete);
 	if (q.length) {
-		staticVars.set('multerDiskHashedStorageQueue', q);
+		staticVars.set('multerDiskQueueStorage', q);
 	} else if (this._repeat && q.length === 0) {
-		staticVars.del('multerDiskHashedStorageQueue');
+		staticVars.del('multerDiskQueueStorage');
 		clearInterval(this);
 	}
 }
 
 function ensureQueueExists(qPollingInterval) {
 	var q = [], si;
-	if (!staticVars.has('multerDiskHashedStorageQueue')) { //ensure queue
-		staticVars.set('multerDiskHashedStorageQueue', q);
+	if (!staticVars.has('multerDiskQueueStorage')) { //ensure queue
+		staticVars.set('multerDiskQueueStorage', q);
 		si = setInterval(processQueue, qPollingInterval, q);
 	} else {
-		q = staticVars.get('multerDiskHashedStorageQueue');
+		q = staticVars.get('multerDiskQueueStorage');
 	}
 	return q;
 }
@@ -49,7 +49,7 @@ function DiskStorage(opts) {
 	if (!_.isNumber(opts.maxConcurrent) || opts.maxConcurrent <= 0 ) {
 		opts.maxConcurrent = 8;
 	}
-	staticVars.set('multerDiskHashedStorageQueueMaxConcurrent', opts.maxConcurrent);
+	staticVars.set('multerDiskQueueStorageMaxConcurrent', opts.maxConcurrent);
     
 	if (!_.isNumber(opts.qPollingInterval) || opts.qPollingInterval <= 0 ) {
 		opts.qPollingInterval = 100;
@@ -61,12 +61,12 @@ function DiskStorage(opts) {
 		};
 	} else if (_.isFunction(opts.filename)) {
 		this._needBuffer = true;
-		this.setFilename = function(req, queueItem) {
-			return opts.filename(req, queueItem);
+		this.setFilename = function(req, queueItem, cb) {
+			return opts.filename.apply(this, arguments);
 		};
 	} else if (!opts.filename) {
-        this.setFilename = function (req, queueItem) {
-            return Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype);
+        this.setFilename = function (req, queueItem, cb) {
+            cb( Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype) );
         }
     }
 	
@@ -77,10 +77,8 @@ function DiskStorage(opts) {
 		};
 	} else if (_.isFunction(opts.destination)) {
 		this._needBuffer = true;
-		this.setDestination = function (req, queueItem) {
-			var p = opts.destination(req, queueItem);
-			mkdirp.sync(p);
-			return p;
+		this.setDestination = function (req, queueItem, cb) {
+			return opts.destination.apply(this, arguments);
 		} 
 	}
 
@@ -123,9 +121,9 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 		ret = {},
 		queueNamePfx = 0,
 		queueName = Date.now(),
-		multerDiskHashedStorageQueue = ensureQueueExists(ds.qPollingInterval)
+		multerDiskQueueStorage = ensureQueueExists(ds.qPollingInterval)
 	;
-	while ( _.some(multerDiskHashedStorageQueue, {'queueName': '' + queueName + (++queueNamePfx)}) );
+	while ( _.some(multerDiskQueueStorage, {'queueName': '' + queueName + (++queueNamePfx)}) );
 	queueItem.queueName = '' + queueName + queueNamePfx;
 	queueItem.file = file;
 	queueItem.state = QS_INIT;
@@ -150,8 +148,8 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 			queueItem.state = QS_STARTED;
 		}
 	}
-	multerDiskHashedStorageQueue.push(queueItem);
-	processQueue(multerDiskHashedStorageQueue);
+	multerDiskQueueStorage.push(queueItem);
+	processQueue(multerDiskQueueStorage);
 }
 
 DiskStorage.prototype._removeFile = function _removeFile(req, file, cb) {
