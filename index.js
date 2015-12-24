@@ -10,6 +10,8 @@ var fs = require('fs'),
 	QS_INIT = 0, QS_STARTED = 1, QS_PROCESSING = 2, QS_FINISHED = 7
 ;
 
+function slash(str) { var isExtendedLengthPath = /^\\\\\?\\/.test(str),hasNonAscii = /[^\x00-\x80]+/.test(str); if (isExtendedLengthPath || hasNonAscii) { return str; } return str.replace(/\\/g, '/'); }
+
 function processQueue(q) {
 	var concurrentNum = 0,
 		multerDiskQueueStorageMaxConcurrent = staticVars.get('multerDiskQueueStorageMaxConcurrent'),
@@ -61,12 +63,12 @@ function DiskStorage(opts) {
 		};
 	} else if (_.isFunction(opts.filename)) {
 		this._needBuffer = true;
-		this.setFilename = function(req, queueItem, cb) {
+		this.setFilename = function(req, queueItem) {
 			return opts.filename.apply(this, arguments);
 		};
 	} else if (!opts.filename) {
-        this.setFilename = function (req, queueItem, cb) {
-            cb( Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype) );
+        this.setFilename = function (req, queueItem) {
+            return Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype);
         }
     }
 	
@@ -77,7 +79,7 @@ function DiskStorage(opts) {
 		};
 	} else if (_.isFunction(opts.destination)) {
 		this._needBuffer = true;
-		this.setDestination = function (req, queueItem, cb) {
+		this.setDestination = function (req, queueItem) {
 			return opts.destination.apply(this, arguments);
 		} 
 	}
@@ -110,7 +112,7 @@ function attachToFsWriteStram(qi, pw, cb) {
 
 function produceFullPath(qi) {
 	return qi.path = (qi.filename && qi.destination) ?
-		(path.join(qi.destination, qi.filename)) :
+		slash(path.join(qi.destination, qi.filename)) :
 		undefined
 	;
 }
@@ -128,7 +130,7 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 	queueItem.file = file;
 	queueItem.state = QS_INIT;
 	_.isString(ds.filename) && (queueItem.filename = ds.filename);
-	_.isString(ds.destination) && (queueItem.destination = ds.destination);
+	_.isString(ds.destination) && (queueItem.destination = slash(ds.destination));
 	produceFullPath(queueItem);
 
 	queueItem.read = function () {
@@ -137,7 +139,7 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 				file.stream.pipe(concat(function(buffer) {
 					queueItem.state = QS_PROCESSING;
 					queueItem.buffer = buffer;
-					queueItem.destination = ds.setDestination(req, queueItem);
+					queueItem.destination = slash(ds.setDestination(req, queueItem));
 					queueItem.filename = ds.setFilename(req, queueItem);
 					produceFullPath(queueItem);
 					attachToFsWriteStram(queueItem, buffer, cb);
