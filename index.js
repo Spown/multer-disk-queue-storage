@@ -1,7 +1,7 @@
 var fs = require('fs'),
 	stream = require('stream'),
 	os = require('os'),
-	path = require('path'),
+	path = require('upath'),
 	mkdirp = require('mkdirp'),
 	mime = require('mime'),
 	concat = require('concat-stream'),
@@ -10,7 +10,13 @@ var fs = require('fs'),
 	QS_INIT = 0, QS_STARTED = 1, QS_PROCESSING = 2, QS_FINISHED = 7
 ;
 
-function slash(str) { var isExtendedLengthPath = /^\\\\\?\\/.test(str),hasNonAscii = /[^\x00-\x80]+/.test(str); if (isExtendedLengthPath || hasNonAscii) { return str; } return str.replace(/\\/g, '/'); }
+function slash(str) {
+	var isExtendedLengthPath = /^\\\\\?\\/.test(str||''),
+		hasNonAscii = /[^\x00-\x80]+/.test(str||'')
+	;
+	if (isExtendedLengthPath || hasNonAscii) { return str; }
+	return (str||'').replace(/\\/g, '/');
+}
 
 function processQueue(q) {
 	var concurrentNum = 0,
@@ -69,7 +75,7 @@ function DiskStorage(opts) {
 	} else if (!opts.filename) {
         this.setFilename = function (req, queueItem) {
             return Date.now()+'_'+queueItem.file.originalname.replace(/\.[^/.]+$/, "")+'.'+mime.extension(queueItem.file.mimetype);
-        }
+        };
     }
 	
 	if (_.isString( opts.destination )) {
@@ -81,7 +87,7 @@ function DiskStorage(opts) {
 		this._needBuffer = true;
 		this.setDestination = function (req, queueItem) {
 			return opts.destination.apply(this, arguments);
-		} 
+		} ;
 	}
 
 }
@@ -99,21 +105,21 @@ function attachToFsWriteStram(qi, pw, cb) {
 			filename: qi.filename,
 			path: qi.path,
 			size: writeStream.bytesWritten
-		})
+		});
 	});
 	if (Buffer.isBuffer(pw)) {
 		writeStream.write(pw, function() {
 			writeStream.end();
-		})
+		});
 	} else if(pw instanceof stream.Stream && typeof (pw._read === 'function') && typeof (pw._readableState === 'object')) {
 		pw.pipe( writeStream );
 	}
 }
 
 function produceFullPath(qi) {
-	return qi.path = (qi.filename && qi.destination) ?
-		slash(path.join(qi.destination, qi.filename)) :
-		undefined
+	return qi.path = ((qi.filename && qi.destination) ?
+		path.normalize(path.join(qi.destination, qi.filename)) :
+		undefined)
 	;
 }
 
@@ -130,7 +136,7 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 	queueItem.file = file;
 	queueItem.state = QS_INIT;
 	_.isString(ds.filename) && (queueItem.filename = ds.filename);
-	_.isString(ds.destination) && (queueItem.destination = slash(ds.destination));
+	_.isString(ds.destination) && (queueItem.destination = path.normalize(ds.destination));
 	produceFullPath(queueItem);
 
 	queueItem.read = function () {
@@ -139,7 +145,7 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 				file.stream.pipe(concat(function(buffer) {
 					queueItem.state = QS_PROCESSING;
 					queueItem.buffer = buffer;
-					queueItem.destination = slash(ds.setDestination(req, queueItem));
+					queueItem.destination = path.normalize(ds.setDestination(req, queueItem));
 					queueItem.filename = ds.setFilename(req, queueItem);
 					produceFullPath(queueItem);
 					attachToFsWriteStram(queueItem, buffer, cb);
@@ -149,21 +155,21 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 			}
 			queueItem.state = QS_STARTED;
 		}
-	}
+	};
 	multerDiskQueueStorage.push(queueItem);
 	processQueue(multerDiskQueueStorage);
-}
+};
 
 DiskStorage.prototype._removeFile = function _removeFile(req, file, cb) {
-	var path = file.path
+	var path = file.path;
 
-	delete file.destination
-	delete file.filename
-	delete file.path
+	delete file.destination;
+	delete file.filename;
+	delete file.path;
 
-	fs.unlink(path, cb)
-}
+	fs.unlink(path, cb);
+};
 
 module.exports = function (opts) {
-	return new DiskStorage(opts)
-}
+	return new DiskStorage(opts);
+};
