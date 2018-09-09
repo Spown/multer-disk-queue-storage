@@ -93,6 +93,10 @@ function DiskStorage(opts) {
 }
 
 function attachToFsWriteStram(qi, pw, cb) {
+	if (!qi || !qi.path) {
+		cb(new Error('no path given!'));
+		return;
+	}
 	var writeStream = fs.createWriteStream( qi.path );
 	writeStream.on('error', function (er, d) {
 		qi.state = QS_FINISHED;
@@ -140,12 +144,13 @@ DiskStorage.prototype._handleFile = function _handleFile(req, file, cb) {
 	produceFullPath(queueItem);
 
 	queueItem.read = function () {
+		var _dest = ds.setDestination(req, queueItem)
 		if (queueItem.state === QS_INIT) {
 			if (ds._needBuffer) {
 				file.stream.pipe(concat(function(buffer) {
 					queueItem.state = QS_PROCESSING;
 					queueItem.buffer = buffer;
-					queueItem.destination = path.normalize(ds.setDestination(req, queueItem));
+					queueItem.destination = _dest && path.normalize(_dest);
 					queueItem.filename = ds.setFilename(req, queueItem);
 					produceFullPath(queueItem);
 					attachToFsWriteStram(queueItem, buffer, cb);
